@@ -12,7 +12,7 @@
         import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Firebase 專案設定
+        // 請替換為您專屬的 firebaseConfig
         const firebaseConfig = {
             apiKey: "AIzaSyD98dW35bgVjGZ1PUUgjQsP1q53Sm5QPxA",
             authDomain: "prime-factorization-2ce1f.firebaseapp.com",
@@ -39,7 +39,8 @@
             
             window.dbHelper.saveScore = async (data) => {
                 try {
-                    await addDoc(collection(db, "scores"), {
+                    // 根據遊戲模式(難度)存入不同的 Collection，避免 Firebase 複合索引報錯
+                    await addDoc(collection(db, `scores_${data.mode}`), {
                         ...data,
                         timestamp: serverTimestamp()
                     });
@@ -50,9 +51,10 @@
                 }
             };
             
-            window.dbHelper.getLeaderboard = async () => {
+            window.dbHelper.getLeaderboard = async (mode) => {
                 try {
-                    const q = query(collection(db, "scores"), orderBy("score", "desc"), limit(10));
+                    // 從對應模式的 Collection 抓取前10名
+                    const q = query(collection(db, `scores_${mode}`), orderBy("score", "desc"), limit(10));
                     const querySnapshot = await getDocs(q);
                     const leaderboard = [];
                     querySnapshot.forEach((doc) => {
@@ -96,6 +98,21 @@
         /* 讓拖曳元素本身不觸發預設手勢 */
         .draggable-item {
             touch-action: none;
+        }
+
+        /* 自訂捲動條 */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent; 
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
         }
 
         /* 動畫效果 */
@@ -175,6 +192,11 @@
 </head>
 <body class="min-h-screen">
 
+    <!-- 作者資訊與版本號 -->
+    <div class="fixed bottom-3 left-3 z-40 bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-lg shadow-sm border border-slate-200 text-xs md:text-sm font-medium text-slate-600 pointer-events-none">
+        嘉義市僑平國小 王大榮老師設計 v.2.7
+    </div>
+
     <!-- 遊戲規則頁面 -->
     <div id="rulesScreen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
         <div class="bg-white rounded-3xl p-6 md:p-8 max-w-4xl w-full max-h-[95vh] overflow-y-auto">
@@ -211,7 +233,7 @@
             </div>
 
             <div class="flex flex-col md:flex-row gap-4">
-                <button id="showLeaderboardBtn" class="bg-indigo-500 text-white py-4 px-6 rounded-xl text-xl font-bold hover:bg-indigo-600 transition-all active:scale-95 shadow-lg md:w-auto">
+                <button id="showLeaderboardBtn" class="bg-indigo-500 text-white py-4 px-6 rounded-xl text-xl font-bold hover:bg-indigo-600 transition-all active:scale-95 shadow-lg md:w-auto flex items-center justify-center gap-2">
                     🏆 英雄榜
                 </button>
                 <button id="startGameBtn" class="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 px-6 rounded-xl text-xl font-bold hover:from-emerald-600 hover:to-teal-600 transition-all transform active:scale-95 shadow-lg">
@@ -221,14 +243,22 @@
         </div>
     </div>
 
-    <!-- 獨立排行榜 Modal -->
+    <!-- 獨立排行榜 Modal (含頁籤功能) -->
     <div id="standaloneLeaderboardModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-[60] p-4">
-        <div class="bg-white rounded-2xl p-6 md:p-8 max-w-md w-full max-h-[80vh] flex flex-col">
+        <div class="bg-white rounded-2xl p-6 md:p-8 max-w-md w-full max-h-[85vh] flex flex-col">
             <div class="flex justify-between items-center mb-4">
-                <h2 class="text-2xl font-bold text-gray-800">🏆 本次英雄榜 (Top 10)</h2>
-                <button id="closeLeaderboardBtn" class="text-gray-400 hover:text-gray-800 text-3xl font-bold transition-colors">&times;</button>
+                <h2 class="text-2xl font-bold text-gray-800 flex items-center gap-2">🏆 英雄榜</h2>
+                <button id="closeLeaderboardBtn" class="text-gray-400 hover:text-gray-800 text-3xl font-bold transition-colors leading-none">&times;</button>
             </div>
-            <div id="standaloneLeaderboardList" class="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
+            
+            <!-- 難度切換頁籤 -->
+            <div class="flex gap-2 mb-4 bg-gray-100 p-1.5 rounded-xl">
+                <button class="lb-tab-btn flex-1 py-2 px-2 rounded-lg font-bold text-sm bg-white shadow text-emerald-600 transition-all" data-mode="beginner">基礎</button>
+                <button class="lb-tab-btn flex-1 py-2 px-2 rounded-lg font-bold text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-200 transition-all" data-mode="advanced">進階</button>
+                <button class="lb-tab-btn flex-1 py-2 px-2 rounded-lg font-bold text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-200 transition-all" data-mode="challenge">挑戰</button>
+            </div>
+
+            <div id="standaloneLeaderboardList" class="flex-1 overflow-y-auto space-y-2 custom-scrollbar pr-1">
                 <div class="text-center text-gray-500 py-8">載入中...</div>
             </div>
         </div>
@@ -347,13 +377,14 @@
                             <span>🏆 記錄成績與排行榜</span>
                         </h3>
                         <div class="flex flex-col sm:flex-row gap-3 mb-4">
-                            <input type="text" id="playerName" placeholder="請輸入：601 01 王小明 (班級 座號 姓名)" class="flex-1 px-4 py-3 border-2 border-indigo-200 rounded-xl focus:outline-none focus:border-indigo-500 text-gray-700 font-medium">
+                            <!-- 加上 onkeypress 支援 Enter 鍵送出 -->
+                            <input type="text" id="playerName" placeholder="範例：601 01 王小明 (班級 座號 姓名)" class="flex-1 px-4 py-3 border-2 border-indigo-200 rounded-xl focus:outline-none focus:border-indigo-500 text-gray-700 font-medium" onkeypress="if(event.keyCode===13) document.getElementById('submitScoreBtn').click()">
                             <button id="submitScoreBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap active:scale-95 shadow-md">
                                 送出成績
                             </button>
                         </div>
                         <div id="leaderboardArea" class="hidden">
-                            <h4 class="font-bold text-gray-700 mb-2">🔥 本次英雄榜 (Top 10)</h4>
+                            <h4 class="font-bold text-gray-700 mb-2" id="leaderboardTitle">🔥 本次英雄榜 (Top 10)</h4>
                             <div id="leaderboardList" class="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar"></div>
                         </div>
                     </div>
@@ -425,9 +456,9 @@
         };
 
         const difficultySettings = {
-            beginner: { max: 50, factorCount: [2, 3], name: '基礎模式：50以內質因數個數 2-3 個' },
-            advanced: { max: 100, factorCount: [2, 4], name: '進階模式：100以內質因數個數 2-4 個' },
-            challenge: { max: 100, factorCount: [3, 6], name: '挑戰模式：100以內質因數個數 3 個以上' }
+            beginner: { max: 50, factorCount: [2, 3], name: '基礎模式：50以內質因數 2-3 個', shortName: '基礎' },
+            advanced: { max: 100, factorCount: [2, 4], name: '進階模式：100以內質因數 2-4 個', shortName: '進階' },
+            challenge: { max: 100, factorCount: [3, 6], name: '挑戰模式：100以內質因數 3 個以上', shortName: '挑戰' }
         };
 
         // --- 數學工具 ---
@@ -490,6 +521,41 @@
             if (navigator.vibrate) navigator.vibrate(pattern);
         }
 
+        // --- 渲染獨立排行榜 ---
+        async function renderStandaloneLeaderboard(mode) {
+            const list = document.getElementById('standaloneLeaderboardList');
+            list.innerHTML = '<div class="text-center text-gray-500 py-8">榜單載入中...</div>';
+
+            // 更新頁籤 UI 狀態
+            document.querySelectorAll('.lb-tab-btn').forEach(btn => {
+                if (btn.dataset.mode === mode) {
+                    btn.className = 'lb-tab-btn flex-1 py-2 px-2 rounded-lg font-bold text-sm bg-white shadow text-emerald-600 transition-all';
+                } else {
+                    btn.className = 'lb-tab-btn flex-1 py-2 px-2 rounded-lg font-bold text-sm text-gray-500 hover:text-gray-700 hover:bg-gray-200 transition-all';
+                }
+            });
+
+            if (window.dbHelper && window.dbHelper.ready) {
+                const data = await window.dbHelper.getLeaderboard(mode);
+                if (data.length === 0) {
+                    list.innerHTML = '<div class="text-center text-gray-500 py-8">目前尚無紀錄，搶當第一名吧！</div>';
+                } else {
+                    list.innerHTML = data.map((item, i) => `
+                        <div class="flex justify-between items-center bg-gray-50 px-4 py-3 rounded-xl border border-gray-100 mb-2">
+                            <div class="flex items-center gap-3">
+                                <span class="font-bold text-${i===0 ? 'yellow-500 text-xl' : (i===1 ? 'gray-400 text-lg' : (i===2 ? 'amber-600 text-lg' : 'gray-400'))} w-6 text-center">${i + 1}</span>
+                                <span class="font-bold text-gray-700">${item.name}</span>
+                            </div>
+                            <div class="font-black text-emerald-600 text-lg">${item.score} <span class="text-xs font-normal text-gray-500">分</span></div>
+                        </div>
+                    `).join('');
+                }
+            } else {
+                list.innerHTML = '<div class="text-center text-red-500 py-8">連線準備中，請稍後再試。</div>';
+            }
+        }
+
+
         // --- 初始化與事件綁定 ---
         function setupEventListeners() {
             // 更新遊戲規則文字
@@ -518,7 +584,7 @@
                     e.target.classList.add('active', `border-${color}-500`);
                     e.target.classList.remove('border-transparent');
                     gameState.difficulty = e.target.dataset.difficulty;
-                    updateRulesContent(); // 難度改變時更新規則說明
+                    updateRulesContent(); 
                 });
             });
 
@@ -544,32 +610,19 @@
             // 排行榜提交
             document.getElementById('submitScoreBtn').addEventListener('click', submitScore);
 
-            // 獨立排行榜按鈕 (在說明視窗中)
-            document.getElementById('showLeaderboardBtn').addEventListener('click', async () => {
+            // 首頁：開啟獨立排行榜按鈕
+            document.getElementById('showLeaderboardBtn').addEventListener('click', () => {
                 document.getElementById('standaloneLeaderboardModal').classList.remove('hidden');
                 document.getElementById('standaloneLeaderboardModal').classList.add('flex');
-                
-                const list = document.getElementById('standaloneLeaderboardList');
-                list.innerHTML = '<div class="text-center text-gray-500 py-8">榜單載入中...</div>';
-                
-                if (window.dbHelper && window.dbHelper.ready) {
-                    const data = await window.dbHelper.getLeaderboard();
-                    if (data.length === 0) {
-                        list.innerHTML = '<div class="text-center text-gray-500 py-8">目前尚無紀錄，搶當第一名吧！</div>';
-                    } else {
-                        list.innerHTML = data.map((item, i) => `
-                            <div class="flex justify-between items-center bg-indigo-50 px-4 py-3 rounded-xl shadow-sm border border-indigo-100 mb-2">
-                                <div class="flex items-center gap-3">
-                                    <span class="font-bold text-${i===0 ? 'yellow-500' : (i===1 ? 'gray-400' : (i===2 ? 'amber-600' : 'gray-400'))} w-6 text-center text-lg">${i + 1}</span>
-                                    <span class="font-bold text-gray-700 text-lg">${item.name}</span>
-                                </div>
-                                <div class="font-black text-indigo-600 text-xl">${item.score} <span class="text-sm font-normal text-gray-500">分</span></div>
-                            </div>
-                        `).join('');
-                    }
-                } else {
-                    list.innerHTML = '<div class="text-center text-red-500 py-8">連線準備中，請稍後再試。</div>';
-                }
+                // 預設載入目前選擇的難度
+                renderStandaloneLeaderboard(gameState.difficulty);
+            });
+
+            // 首頁：獨立排行榜頁籤切換
+            document.querySelectorAll('.lb-tab-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    renderStandaloneLeaderboard(e.target.dataset.mode);
+                });
             });
 
             document.getElementById('closeLeaderboardBtn').addEventListener('click', () => {
@@ -616,7 +669,7 @@
             document.getElementById('submitScoreBtn').textContent = '送出成績';
             document.getElementById('leaderboardArea').classList.add('hidden');
 
-            document.getElementById('gameModeHUD').textContent = `${difficultySettings[gameState.difficulty].name} / ${gameState.timeMinutes}分鐘`;
+            document.getElementById('gameModeHUD').textContent = `${difficultySettings[gameState.difficulty].shortName}模式 / ${gameState.timeMinutes}分鐘`;
             updateHUD();
             loadQuestion();
             startTimer();
@@ -923,6 +976,13 @@
             document.getElementById('correctRate').textContent = cr + '%';
             document.getElementById('maxCombo').textContent = gameState.maxCombo;
             
+            // 更新本次遊玩的難度文字
+            const shortName = difficultySettings[gameState.difficulty].shortName;
+            document.getElementById('gameModeDisplay').textContent = `質因數分解 / ${shortName} / ${gameState.timeMinutes}分鐘`;
+            
+            // 更新排行榜標題 (依據遊玩難度)
+            document.getElementById('leaderboardTitle').textContent = `🔥 本次英雄榜 - ${shortName} (Top 10)`;
+
             // 錯題清單
             const wrongs = gameState.questions.filter(q => (!q.isCorrect || q.isSkipped) && q.answerTime > 0);
             const wrongList = document.getElementById('wrongAnswersList');
@@ -951,14 +1011,14 @@
             const name = nameInput.value.trim();
             if (!name) return showToast('請填寫班級座號姓名才能記錄！', 'error');
             
-            // 驗證格式：3碼數字(班級) + 2碼數字(座號) + 空白 + 姓名
-            // 允許學生中間少打空白，例如 "60101 王小明" 或 "601 01 王小明"
-            const match = name.match(/^(\d{3})\s*(\d{2})\s+(.+)$/);
+            // 驗證格式：3碼數字(班級) + (可選空白) + 2碼數字(座號) + (可選空白) + 姓名
+            // 例如: "601 01 王小明" 或 "60101王小明" 都能捕捉
+            const match = name.match(/^(\d{3})\s*(\d{2})\s*(.+)$/);
             if (!match) {
-                return showToast('格式錯誤！請依照格式輸入：60X(班級) 01(座號) 姓名', 'error');
+                return showToast('格式錯誤！請輸入：60X(班級) 01(座號) 姓名', 'error');
             }
             
-            // 將輸入格式標準化，例如統一變成 "601 01 王小明"
+            // 自動標準化：強制轉換成 "601 01 王小明" 的整齊格式
             const formattedName = `${match[1]} ${match[2]} ${match[3]}`;
             
             if (!window.dbHelper || !window.dbHelper.ready) {
@@ -972,7 +1032,7 @@
             const success = await window.dbHelper.saveScore({
                 name: formattedName,
                 score: gameState.score,
-                mode: gameState.difficulty,
+                mode: gameState.difficulty, // 將當前難度一併存入
                 time: gameState.timeMinutes
             });
             
@@ -980,7 +1040,7 @@
                 showToast('成績記錄成功！🏆');
                 nameInput.disabled = true;
                 btn.textContent = '已送出';
-                await loadLeaderboard();
+                await loadResultLeaderboard();
             } else {
                 showToast('發生錯誤，請重試', 'error');
                 btn.disabled = false;
@@ -988,13 +1048,16 @@
             }
         }
 
-        async function loadLeaderboard() {
+        // 結算畫面專用的排行榜載入 (只載入剛剛遊玩的難度)
+        async function loadResultLeaderboard() {
             const area = document.getElementById('leaderboardArea');
             const list = document.getElementById('leaderboardList');
             area.classList.remove('hidden');
             list.innerHTML = '<div class="text-center text-gray-500 text-sm py-4">榜單載入中...</div>';
             
-            const data = await window.dbHelper.getLeaderboard();
+            // 根據當前遊玩的難度抓取排行榜
+            const data = await window.dbHelper.getLeaderboard(gameState.difficulty);
+            
             if (data.length === 0) {
                 list.innerHTML = '<div class="text-center text-gray-500 text-sm py-4">目前尚無紀錄，搶當第一名吧！</div>';
                 return;
