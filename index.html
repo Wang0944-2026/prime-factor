@@ -1,1 +1,1018 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>質因數分解練習遊戲</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, getDocs, query, orderBy, limit, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // Firebase 專案設定
+        const firebaseConfig = {
+            apiKey: "AIzaSyD98dW35bgVjGZ1PUUgjQsP1q53Sm5QPxA",
+            authDomain: "prime-factorization-2ce1f.firebaseapp.com",
+            projectId: "prime-factorization-2ce1f",
+            storageBucket: "prime-factorization-2ce1f.firebasestorage.app",
+            messagingSenderId: "33103319498",
+            appId: "1:33103319498:web:0b1fde58630a0b90597f33"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // 初始化全域的資料庫輔助物件
+        window.dbHelper = {
+            ready: false,
+            saveScore: async () => false,
+            getLeaderboard: async () => []
+        };
+
+        // 開啟匿名登入並綁定功能
+        signInAnonymously(auth).then(() => {
+            window.dbHelper.ready = true;
+            
+            window.dbHelper.saveScore = async (data) => {
+                try {
+                    await addDoc(collection(db, "scores"), {
+                        ...data,
+                        timestamp: serverTimestamp()
+                    });
+                    return true;
+                } catch (e) {
+                    console.error("Error adding score: ", e);
+                    return false;
+                }
+            };
+            
+            window.dbHelper.getLeaderboard = async () => {
+                try {
+                    const q = query(collection(db, "scores"), orderBy("score", "desc"), limit(10));
+                    const querySnapshot = await getDocs(q);
+                    const leaderboard = [];
+                    querySnapshot.forEach((doc) => {
+                        leaderboard.push(doc.data());
+                    });
+                    return leaderboard;
+                } catch (e) {
+                    console.error("Error getting leaderboard: ", e);
+                    return [];
+                }
+            };
+        }).catch((error) => {
+            console.error("Auth error:", error);
+            // 當尚未開啟匿名登入時，在畫面上給予友善提示
+            window.addEventListener('DOMContentLoaded', () => {
+                if (error.code === 'auth/configuration-not-found' || error.code === 'auth/operation-not-allowed') {
+                    setTimeout(() => {
+                        showToast('後台尚未啟用匿名登入功能！請至 Firebase 控制台開啟', 'error');
+                    }, 1000);
+                }
+            });
+        });
+    </script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: linear-gradient(135deg, #f0f9ff 0%, #fef3c7 25%, #fce7f3 50%, #f3e8ff 75%, #ecfdf5 100%);
+            min-height: 100vh;
+            /* 修正 iPad/Mobile 觸控拖曳時引發的頁面滾動問題 */
+            touch-action: pan-x pan-y; 
+            overscroll-behavior-y: contain;
+        }
+
+        /* 讓拖曳元素本身不觸發預設手勢 */
+        .draggable-item {
+            touch-action: none;
+        }
+
+        /* 動畫效果 */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        @keyframes pulseGreen {
+            0%, 100% { 
+                background: linear-gradient(135deg, rgba(134, 239, 172, 0.4), rgba(74, 222, 128, 0.5));
+                box-shadow: 0 0 30px rgba(74, 222, 128, 0.6), inset 0 0 50px rgba(74, 222, 128, 0.2);
+            }
+            50% { 
+                background: linear-gradient(135deg, rgba(134, 239, 172, 0.6), rgba(74, 222, 128, 0.7));
+                box-shadow: 0 0 50px rgba(74, 222, 128, 0.8), inset 0 0 80px rgba(74, 222, 128, 0.3);
+            }
+        }
+
+        @keyframes pulseRed {
+            0%, 100% { 
+                background: linear-gradient(135deg, rgba(252, 165, 165, 0.4), rgba(248, 113, 113, 0.5));
+                box-shadow: 0 0 30px rgba(248, 113, 113, 0.6), inset 0 0 50px rgba(248, 113, 113, 0.2);
+            }
+            50% { 
+                background: linear-gradient(135deg, rgba(252, 165, 165, 0.6), rgba(248, 113, 113, 0.7));
+                box-shadow: 0 0 50px rgba(248, 113, 113, 0.8), inset 0 0 80px rgba(248, 113, 113, 0.3);
+            }
+        }
+
+        @keyframes comboAppear {
+            0% { opacity: 0; transform: translateY(-10px) scale(0.8); }
+            20% { opacity: 1; transform: translateY(0) scale(1.1); }
+            80% { opacity: 1; transform: translateY(0) scale(1); }
+            100% { opacity: 0; transform: translateY(-5px) scale(0.9); }
+        }
+
+        .pulse-green { animation: pulseGreen 0.5s ease-in-out; }
+        .pulse-red { animation: pulseRed 0.5s ease-in-out; }
+        .shake { animation: shake 0.5s ease-in-out; }
+
+        .combo-message {
+            position: absolute;
+            top: 40px;
+            right: 40px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            z-index: 100;
+            animation: comboAppear 2s ease-out forwards;
+            padding: 8px 16px;
+            border-radius: 12px;
+        }
+
+        .ghost-card {
+            position: fixed;
+            background: rgba(66, 153, 225, 0.8);
+            color: white;
+            padding: 16px 20px;
+            border-radius: 12px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            pointer-events: none;
+            z-index: 1000;
+            transform: translate(-50%, -50%) rotate(5deg);
+            box-shadow: 0 10px 25px rgba(66, 153, 225, 0.4);
+            backdrop-filter: blur(5px);
+        }
+
+        .magnetic-hover {
+            border-color: #48bb78 !important;
+            background-color: rgba(72, 187, 120, 0.1) !important;
+            transform: scale(1.1) !important;
+            box-shadow: 0 0 20px rgba(72, 187, 120, 0.5) !important;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+
+    <!-- 遊戲規則頁面 -->
+    <div id="rulesScreen" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-3xl p-6 md:p-8 max-w-4xl w-full max-h-[95vh] overflow-y-auto">
+            <h1 class="text-3xl md:text-4xl font-bold text-center text-gray-800 mb-6">🔢 質因數分解練習</h1>
+            
+            <div class="mb-6 bg-blue-50 p-4 md:p-6 rounded-xl space-y-6">
+                <!-- 難度選擇 -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-3 text-slate-700">選擇難度</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <button class="difficulty-btn active bg-emerald-100 hover:bg-emerald-200 text-emerald-800 py-3 px-4 rounded-lg font-medium transition-all border-[3px] border-emerald-500 shadow-md text-center" data-difficulty="beginner">基礎 (2-3個質因數)</button>
+                        <button class="difficulty-btn bg-sky-100 hover:bg-sky-200 text-sky-800 py-3 px-4 rounded-lg font-medium transition-all border-[3px] border-transparent text-center" data-difficulty="advanced">進階 (2-4個質因數)</button>
+                        <button class="difficulty-btn bg-violet-100 hover:bg-violet-200 text-violet-800 py-3 px-4 rounded-lg font-medium transition-all border-[3px] border-transparent text-center" data-difficulty="challenge">挑戰 (3個以上)</button>
+                    </div>
+                </div>
+                
+                <!-- 時間選擇 -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-3 text-slate-700">選擇時間</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <button class="time-btn active bg-amber-100 hover:bg-amber-200 text-amber-800 py-2 px-4 rounded-lg font-medium transition-all border-[3px] border-amber-500 shadow-md flex-1 min-w-[80px]" data-time="1">1分鐘</button>
+                        <button class="time-btn bg-amber-100 hover:bg-amber-200 text-amber-800 py-2 px-4 rounded-lg font-medium transition-all border-[3px] border-transparent flex-1 min-w-[80px]" data-time="2">2分鐘</button>
+                        <button class="time-btn bg-amber-100 hover:bg-amber-200 text-amber-800 py-2 px-4 rounded-lg font-medium transition-all border-[3px] border-transparent flex-1 min-w-[80px]" data-time="3">3分鐘</button>
+                        <button class="time-btn bg-amber-100 hover:bg-amber-200 text-amber-800 py-2 px-4 rounded-lg font-medium transition-all border-[3px] border-transparent flex-1 min-w-[80px]" data-time="5">5分鐘</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-6 bg-gray-50 p-4 rounded-xl">
+                <h3 class="text-lg font-semibold mb-3 text-gray-700">📋 遊戲規則</h3>
+                <div id="rulesContent" class="text-gray-600 space-y-2">
+                    <!-- 規則將由 JS 動態產生 -->
+                </div>
+            </div>
+
+            <div class="flex flex-col md:flex-row gap-4">
+                <button id="showLeaderboardBtn" class="bg-indigo-500 text-white py-4 px-6 rounded-xl text-xl font-bold hover:bg-indigo-600 transition-all active:scale-95 shadow-lg md:w-auto">
+                    🏆 英雄榜
+                </button>
+                <button id="startGameBtn" class="flex-1 bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 px-6 rounded-xl text-xl font-bold hover:from-emerald-600 hover:to-teal-600 transition-all transform active:scale-95 shadow-lg">
+                    🚀 開始遊戲
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 獨立排行榜 Modal -->
+    <div id="standaloneLeaderboardModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-[60] p-4">
+        <div class="bg-white rounded-2xl p-6 md:p-8 max-w-md w-full max-h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-bold text-gray-800">🏆 本次英雄榜 (Top 10)</h2>
+                <button id="closeLeaderboardBtn" class="text-gray-400 hover:text-gray-800 text-3xl font-bold transition-colors">&times;</button>
+            </div>
+            <div id="standaloneLeaderboardList" class="flex-1 overflow-y-auto space-y-2 custom-scrollbar">
+                <div class="text-center text-gray-500 py-8">載入中...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主遊戲畫面 -->
+    <div id="gameScreen" class="hidden min-h-screen p-4 md:p-6 max-w-7xl mx-auto">
+        <!-- HUD -->
+        <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl p-4 mb-4 shadow-lg">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex flex-wrap items-center gap-4 md:gap-6">
+                    <div class="text-2xl font-bold text-emerald-600">
+                        分數: <span id="score">0</span>
+                    </div>
+                    <div id="comboDisplay" class="text-xl font-bold text-amber-500 hidden">
+                        連擊: <span id="combo">0</span>
+                    </div>
+                    <div class="text-sm text-slate-600 bg-slate-100 px-3 py-1 rounded-full" id="gameModeHUD">
+                        入門模式 / 1分鐘
+                    </div>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="text-xl font-bold tracking-wider" id="timer">01:00</div>
+                    <button id="restartBtn" class="bg-slate-500 hover:bg-slate-600 text-white px-4 py-2 rounded-lg font-medium transition-all active:scale-95">重新開始</button>
+                </div>
+            </div>
+            <!-- 時間進度條 -->
+            <div class="mt-4 bg-slate-200 rounded-full h-2 overflow-hidden">
+                <div id="progressBar" class="h-full bg-emerald-500 transition-all duration-300" style="width: 100%"></div>
+            </div>
+        </div>
+
+        <!-- 遊戲區域 -->
+        <div class="grid lg:grid-cols-3 gap-6">
+            <!-- 題目區域 -->
+            <div class="lg:col-span-2 bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl p-6 shadow-lg transition-colors duration-300" id="questionArea">
+                <div id="questionContainer" class="relative flex flex-col justify-center min-h-[350px]">
+                    <div class="absolute top-0 left-0 text-lg font-medium text-slate-600">
+                        題目: <span id="currentQuestion">1</span>
+                    </div>
+                    
+                    <div class="text-center flex-1 flex flex-col justify-center items-center w-full">
+                        <div class="text-2xl md:text-3xl font-bold text-slate-800 mb-8">
+                            將 <span id="targetNumber" class="text-4xl md:text-5xl text-emerald-600 mx-2">12</span> 做質因數分解
+                        </div>
+                        
+                        <div class="flex flex-wrap items-center justify-center gap-2 md:gap-4 text-2xl mb-8 w-full max-w-2xl mx-auto">
+                            <span id="targetNumberDisplay" class="bg-emerald-100 text-emerald-800 px-4 py-2 rounded-xl font-bold">12</span>
+                            <span class="text-slate-600">=</span>
+                            <div id="factorsContainer" class="flex flex-wrap items-center justify-center gap-2 md:gap-3">
+                                <!-- 放置區將由 JS 生成 -->
+                            </div>
+                        </div>
+                        
+                        <!-- 控制按鈕 -->
+                        <div class="grid grid-cols-2 gap-4 mt-8 w-full max-w-sm mx-auto">
+                            <button id="submitBtn" class="bg-emerald-500 hover:bg-emerald-600 text-white py-3 md:py-4 rounded-xl font-bold transition-all active:scale-95 shadow-lg text-lg">
+                                提交答案
+                            </button>
+                            <button id="skipBtn" class="bg-gray-500 hover:bg-gray-600 text-white py-3 md:py-4 rounded-xl font-bold transition-all active:scale-95 shadow-lg text-lg">
+                                跳過 (-3分)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 數字池 -->
+            <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
+                <h3 class="text-xl font-bold text-slate-800 mb-4 flex items-center justify-between">
+                    <span>🎯 數字池</span>
+                    <span class="text-xs font-normal text-slate-500 bg-slate-100 px-2 py-1 rounded">請拖曳數字</span>
+                </h3>
+                <!-- iPad (md) 使用 6 格，手機 (預設) 使用 4 格或 3 格 -->
+                <div id="numberPool" class="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 結果Modal -->
+    <div id="resultModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl p-6 md:p-8 max-w-5xl w-full max-h-[95vh] overflow-y-auto flex flex-col">
+            <h2 class="text-3xl font-bold text-center text-gray-800 mb-2">🎉 遊戲結束！</h2>
+            
+            <div class="text-center mb-6">
+                <div class="text-base font-medium text-gray-600" id="gameModeDisplay">質因數分解 / 入門 / 1分鐘</div>
+                <div class="text-sm text-green-600 mt-2 bg-green-50 inline-block px-4 py-1 rounded-full font-bold" id="motivationMessage">🌟 表現優秀！繼續保持！</div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                <!-- 左側統計區域 -->
+                <div class="md:col-span-1 grid grid-cols-2 md:grid-cols-1 gap-3 h-full">
+                    <div class="bg-purple-50 p-4 rounded-xl text-center flex flex-col justify-center border border-purple-100">
+                        <div class="text-3xl font-bold text-purple-600" id="finalScore">0</div>
+                        <div class="text-sm text-purple-500 font-medium mt-1">總分</div>
+                    </div>
+                    <div class="bg-blue-50 p-4 rounded-xl text-center flex flex-col justify-center border border-blue-100">
+                        <div class="text-2xl font-bold text-blue-600" id="answerStatus">0/0</div>
+                        <div class="text-sm text-blue-500 font-medium mt-1">答題數</div>
+                    </div>
+                    <div class="bg-green-50 p-4 rounded-xl text-center flex flex-col justify-center border border-green-100">
+                        <div class="text-2xl font-bold text-green-600" id="correctRate">0%</div>
+                        <div class="text-sm text-green-500 font-medium mt-1">正確率</div>
+                    </div>
+                    <div class="bg-red-50 p-4 rounded-xl text-center flex flex-col justify-center border border-red-100">
+                        <div class="text-2xl font-bold text-red-600" id="maxCombo">0</div>
+                        <div class="text-sm text-red-500 font-medium mt-1">最高連擊</div>
+                    </div>
+                </div>
+
+                <!-- 右側區域：排行榜 與 錯題 -->
+                <div class="md:col-span-2 flex flex-col gap-4">
+                    <!-- Firebase 排行榜表單 -->
+                    <div class="bg-indigo-50 p-5 rounded-xl border border-indigo-100">
+                        <h3 class="text-lg font-bold text-indigo-800 mb-3 flex items-center">
+                            <span>🏆 記錄成績與排行榜</span>
+                        </h3>
+                        <div class="flex flex-col sm:flex-row gap-3 mb-4">
+                            <input type="text" id="playerName" placeholder="請輸入：601 01 王小明 (班級 座號 姓名)" class="flex-1 px-4 py-3 border-2 border-indigo-200 rounded-xl focus:outline-none focus:border-indigo-500 text-gray-700 font-medium">
+                            <button id="submitScoreBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold transition-all whitespace-nowrap active:scale-95 shadow-md">
+                                送出成績
+                            </button>
+                        </div>
+                        <div id="leaderboardArea" class="hidden">
+                            <h4 class="font-bold text-gray-700 mb-2">🔥 本次英雄榜 (Top 10)</h4>
+                            <div id="leaderboardList" class="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar"></div>
+                        </div>
+                    </div>
+
+                    <!-- 錯題複習 -->
+                    <div class="bg-gray-50 rounded-xl p-5 border border-gray-200 flex-1 flex flex-col max-h-[300px]">
+                        <h3 class="text-lg font-bold text-gray-800 mb-3">📝 錯題複習</h3>
+                        <div id="wrongAnswersList" class="overflow-y-auto space-y-3 pr-2 flex-1 custom-scrollbar"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-4 mt-auto">
+                <button id="replayBtn" class="bg-emerald-500 hover:bg-emerald-600 text-white py-4 px-6 rounded-xl font-bold transition-all active:scale-95 flex-1 shadow-md text-lg">
+                    🔄 重新挑戰
+                </button>
+                <button id="changeSettingsBtn" class="bg-blue-500 hover:bg-blue-600 text-white py-4 px-6 rounded-xl font-bold transition-all active:scale-95 flex-1 shadow-md text-lg">
+                    ⚙️ 調整設定
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 工具：Toast 提示框取代 alert() ---
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `fixed top-5 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full text-white font-bold z-[9999] shadow-lg transition-all duration-300 opacity-0 translate-y-[-20px] pointer-events-none`;
+            toast.style.backgroundColor = type === 'error' ? '#ef4444' : '#10b981';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            // Trigger animation
+            requestAnimationFrame(() => {
+                toast.classList.remove('opacity-0', 'translate-y-[-20px]');
+            });
+            
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-[-20px]');
+                setTimeout(() => toast.remove(), 300);
+            }, 2500);
+        }
+
+        // --- 遊戲狀態 ---
+        let gameState = {
+            currentQuestion: 0,
+            score: 0,
+            combo: 0,
+            maxCombo: 0,
+            difficulty: 'beginner',
+            timeMinutes: 1,
+            remainingTime: 60,
+            totalTime: 60,
+            questions: [],
+            recentQuestions: [],
+            answeredQuestions: 0,
+            correctAnswers: 0,
+            startTime: null,
+            gameEnded: false,
+            timerInterval: null
+        };
+
+        let dragState = {
+            isDragging: false,
+            draggedNumber: null,
+            ghostElement: null,
+            isRemovingFactor: false,
+            sourceSlot: null
+        };
+
+        const difficultySettings = {
+            beginner: { max: 50, factorCount: [2, 3], name: '基礎模式：50以內質因數個數 2-3 個' },
+            advanced: { max: 100, factorCount: [2, 4], name: '進階模式：100以內質因數個數 2-4 個' },
+            challenge: { max: 100, factorCount: [3, 6], name: '挑戰模式：100以內質因數個數 3 個以上' }
+        };
+
+        // --- 數學工具 ---
+        function isPrime(n) {
+            if (n < 2) return false;
+            for (let i = 2; i <= Math.sqrt(n); i++) {
+                if (n % i === 0) return false;
+            }
+            return true;
+        }
+
+        function getFactors(n) {
+            const factors = [];
+            for (let i = 2; i <= n; i++) {
+                while (n % i === 0) {
+                    factors.push(i);
+                    n /= i;
+                }
+            }
+            return factors.length > 0 ? factors : [n];
+        }
+
+        function generateNumbers() {
+            const settings = difficultySettings[gameState.difficulty];
+            const numbers = [];
+            for (let i = 4; i <= settings.max; i++) {
+                if (!gameState.recentQuestions.includes(i)) {
+                    const factors = getFactors(i);
+                    const count = factors.length;
+                    if (count >= settings.factorCount[0] && count <= settings.factorCount[1]) {
+                        numbers.push({ number: i, factors: factors });
+                    }
+                }
+            }
+            return numbers;
+        }
+
+        function generateNumberPool(targetNumber, factors) {
+            const pool = new Set();
+            const max = difficultySettings[gameState.difficulty].max;
+            
+            factors.forEach(f => pool.add(f)); // 正確答案
+            factors.forEach(f => {             // 誘導數字
+                if (f > 2) pool.add(f - 1);
+                if (f < max) pool.add(f + 1);
+            });
+            
+            // 補充質數
+            for (let i = 2; i <= max && pool.size < 12; i++) {
+                if (isPrime(i)) pool.add(i);
+            }
+            // 補充合數
+            for (let i = 4; i <= max && pool.size < 12; i++) {
+                if (!isPrime(i)) pool.add(i);
+            }
+            return Array.from(pool).sort((a, b) => a - b).slice(0, 12);
+        }
+
+        function vibrate(pattern = [50]) {
+            if (navigator.vibrate) navigator.vibrate(pattern);
+        }
+
+        // --- 初始化與事件綁定 ---
+        function setupEventListeners() {
+            // 更新遊戲規則文字
+            const updateRulesContent = () => {
+                const content = document.getElementById('rulesContent');
+                const settings = difficultySettings[gameState.difficulty];
+                content.innerHTML = `
+                    <p>• 將數字拖曳到分解框中完成質因數分解</p>
+                    <p>• ${settings.name}</p>
+                    <p>• 答對得 1 分，連擊 3 次以上每題額外 +1 分</p>
+                    <p>• 答錯或跳過會重置連擊，跳過扣 3 分</p>
+                `;
+            };
+            
+            // 初始化規則文字
+            updateRulesContent();
+
+            // 設定區按鈕
+            document.querySelectorAll('.difficulty-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.difficulty-btn').forEach(b => {
+                        b.classList.remove('active', 'border-emerald-500', 'border-sky-500', 'border-violet-500');
+                        b.classList.add('border-transparent');
+                    });
+                    const color = e.target.classList.contains('text-emerald-800') ? 'emerald' : (e.target.classList.contains('text-sky-800') ? 'sky' : 'violet');
+                    e.target.classList.add('active', `border-${color}-500`);
+                    e.target.classList.remove('border-transparent');
+                    gameState.difficulty = e.target.dataset.difficulty;
+                    updateRulesContent(); // 難度改變時更新規則說明
+                });
+            });
+
+            document.querySelectorAll('.time-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.time-btn').forEach(b => {
+                        b.classList.remove('active', 'border-amber-500');
+                        b.classList.add('border-transparent');
+                    });
+                    e.target.classList.add('active', 'border-amber-500');
+                    e.target.classList.remove('border-transparent');
+                    gameState.timeMinutes = parseInt(e.target.dataset.time);
+                });
+            });
+
+            document.getElementById('startGameBtn').addEventListener('click', startGame);
+            document.getElementById('submitBtn').addEventListener('click', checkAnswer);
+            document.getElementById('skipBtn').addEventListener('click', skipQuestion);
+            document.getElementById('restartBtn').addEventListener('click', restartGame);
+            document.getElementById('replayBtn').addEventListener('click', restartGame);
+            document.getElementById('changeSettingsBtn').addEventListener('click', backToSettings);
+
+            // 排行榜提交
+            document.getElementById('submitScoreBtn').addEventListener('click', submitScore);
+
+            // 獨立排行榜按鈕 (在說明視窗中)
+            document.getElementById('showLeaderboardBtn').addEventListener('click', async () => {
+                document.getElementById('standaloneLeaderboardModal').classList.remove('hidden');
+                document.getElementById('standaloneLeaderboardModal').classList.add('flex');
+                
+                const list = document.getElementById('standaloneLeaderboardList');
+                list.innerHTML = '<div class="text-center text-gray-500 py-8">榜單載入中...</div>';
+                
+                if (window.dbHelper && window.dbHelper.ready) {
+                    const data = await window.dbHelper.getLeaderboard();
+                    if (data.length === 0) {
+                        list.innerHTML = '<div class="text-center text-gray-500 py-8">目前尚無紀錄，搶當第一名吧！</div>';
+                    } else {
+                        list.innerHTML = data.map((item, i) => `
+                            <div class="flex justify-between items-center bg-indigo-50 px-4 py-3 rounded-xl shadow-sm border border-indigo-100 mb-2">
+                                <div class="flex items-center gap-3">
+                                    <span class="font-bold text-${i===0 ? 'yellow-500' : (i===1 ? 'gray-400' : (i===2 ? 'amber-600' : 'gray-400'))} w-6 text-center text-lg">${i + 1}</span>
+                                    <span class="font-bold text-gray-700 text-lg">${item.name}</span>
+                                </div>
+                                <div class="font-black text-indigo-600 text-xl">${item.score} <span class="text-sm font-normal text-gray-500">分</span></div>
+                            </div>
+                        `).join('');
+                    }
+                } else {
+                    list.innerHTML = '<div class="text-center text-red-500 py-8">連線準備中，請稍後再試。</div>';
+                }
+            });
+
+            document.getElementById('closeLeaderboardBtn').addEventListener('click', () => {
+                document.getElementById('standaloneLeaderboardModal').classList.add('hidden');
+                document.getElementById('standaloneLeaderboardModal').classList.remove('flex');
+            });
+        }
+
+        // --- 遊戲生命週期 ---
+        function startGame() {
+            document.getElementById('rulesScreen').classList.add('hidden');
+            document.getElementById('gameScreen').classList.remove('hidden');
+            initGame();
+        }
+
+        function restartGame() {
+            document.getElementById('resultModal').classList.add('hidden');
+            document.getElementById('resultModal').classList.remove('flex');
+            initGame();
+        }
+
+        function backToSettings() {
+            document.getElementById('resultModal').classList.add('hidden');
+            document.getElementById('resultModal').classList.remove('flex');
+            document.getElementById('gameScreen').classList.add('hidden');
+            document.getElementById('rulesScreen').classList.remove('hidden');
+            clearInterval(gameState.timerInterval);
+        }
+
+        function initGame() {
+            gameState.questions = [];
+            gameState.currentQuestion = 0;
+            gameState.score = 0;
+            gameState.combo = 0;
+            gameState.maxCombo = 0;
+            gameState.answeredQuestions = 0;
+            gameState.correctAnswers = 0;
+            gameState.gameEnded = false;
+            
+            // Reset Firebase form
+            document.getElementById('playerName').value = '';
+            document.getElementById('playerName').disabled = false;
+            document.getElementById('submitScoreBtn').disabled = false;
+            document.getElementById('submitScoreBtn').textContent = '送出成績';
+            document.getElementById('leaderboardArea').classList.add('hidden');
+
+            document.getElementById('gameModeHUD').textContent = `${difficultySettings[gameState.difficulty].name} / ${gameState.timeMinutes}分鐘`;
+            updateHUD();
+            loadQuestion();
+            startTimer();
+        }
+
+        // --- 題目載入與渲染 ---
+        function loadQuestion() {
+            let availableNumbers = generateNumbers();
+            if (availableNumbers.length === 0) {
+                gameState.recentQuestions = [];
+                availableNumbers = generateNumbers();
+                if (availableNumbers.length === 0) return endGame();
+            }
+            
+            const question = availableNumbers[Math.floor(Math.random() * availableNumbers.length)];
+            
+            const newQ = {
+                ...question,
+                userAnswer: [],
+                isCorrect: false,
+                isSkipped: false,
+                startTime: Date.now()
+            };
+            
+            if (gameState.currentQuestion >= gameState.questions.length) {
+                gameState.questions.push(newQ);
+            } else {
+                gameState.questions[gameState.currentQuestion] = newQ;
+            }
+            
+            gameState.recentQuestions.push(question.number);
+            if (gameState.recentQuestions.length > 5) gameState.recentQuestions.shift();
+            
+            // 更新 UI
+            document.getElementById('targetNumber').textContent = question.number;
+            document.getElementById('targetNumberDisplay').textContent = question.number;
+            document.getElementById('currentQuestion').textContent = gameState.currentQuestion + 1;
+            
+            rebuildFactorsContainer();
+            renderNumberPool(generateNumberPool(question.number, question.factors));
+        }
+
+        function rebuildFactorsContainer() {
+            const container = document.getElementById('factorsContainer');
+            const q = gameState.questions[gameState.currentQuestion];
+            const ans = q.userAnswer || [];
+            
+            container.innerHTML = '';
+            
+            ans.forEach((num, index) => {
+                if (index > 0) container.innerHTML += `<span class="text-gray-600 font-bold mx-1">×</span>`;
+                const slot = document.createElement('div');
+                // 放大的觸控目標區塊
+                slot.className = 'factor-slot draggable-item w-14 h-14 md:w-16 md:h-16 border-2 border-solid border-emerald-500 bg-emerald-100 rounded-xl flex items-center justify-center text-xl md:text-2xl font-bold cursor-pointer hover:bg-emerald-200 transition-all shadow-sm';
+                slot.dataset.index = index;
+                slot.textContent = num;
+                slot.onmousedown = (e) => startDrag(e, num);
+                slot.ontouchstart = (e) => startDrag(e, num);
+                container.appendChild(slot);
+            });
+            
+            if (ans.length < 6) {
+                if (ans.length > 0) container.innerHTML += `<span class="text-gray-600 font-bold mx-1">×</span>`;
+                const emptySlot = document.createElement('div');
+                emptySlot.className = 'factor-slot w-14 h-14 md:w-16 md:h-16 border-2 border-dashed border-slate-300 rounded-xl flex items-center justify-center text-xl cursor-pointer hover:border-emerald-400 transition-all';
+                emptySlot.dataset.index = ans.length;
+                container.appendChild(emptySlot);
+            }
+        }
+
+        function renderNumberPool(numbers) {
+            const poolEl = document.getElementById('numberPool');
+            poolEl.innerHTML = numbers.map(num => `
+                <div class="draggable-item bg-sky-500 hover:bg-sky-600 text-white aspect-square flex items-center justify-center rounded-xl text-2xl font-bold cursor-grab transition-transform transform active:scale-95 select-none shadow-md"
+                     draggable="true" data-number="${num}" 
+                     onmousedown="startDrag(event, ${num})" 
+                     ontouchstart="startDrag(event, ${num})">${num}</div>
+            `).join('');
+        }
+
+        // --- 拖曳功能 ---
+        function startDrag(event, number) {
+            event.preventDefault(); // 防止預設滾動或圈選
+            const source = event.target.closest('.factor-slot');
+            
+            if (source && source.textContent) {
+                dragState.isRemovingFactor = true;
+                dragState.sourceSlot = source;
+                number = parseInt(source.textContent);
+            } else {
+                dragState.isRemovingFactor = false;
+            }
+            
+            dragState.isDragging = true;
+            dragState.draggedNumber = number;
+            
+            // 處理 touch 或 mouse 座標
+            const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+            const clientY = event.touches ? event.touches[0].clientY : event.clientY;
+            
+            createGhost(number, clientX, clientY);
+            vibrate();
+            
+            document.addEventListener('mousemove', handleDragMove, {passive: false});
+            document.addEventListener('touchmove', handleDragMove, {passive: false});
+            document.addEventListener('mouseup', handleDragEnd);
+            document.addEventListener('touchend', handleDragEnd);
+        }
+
+        function createGhost(num, x, y) {
+            dragState.ghostElement = document.createElement('div');
+            dragState.ghostElement.className = 'ghost-card';
+            dragState.ghostElement.textContent = num;
+            dragState.ghostElement.style.left = x + 'px';
+            dragState.ghostElement.style.top = y + 'px';
+            document.body.appendChild(dragState.ghostElement);
+        }
+
+        function handleDragMove(event) {
+            if (!dragState.isDragging) return;
+            event.preventDefault(); // 強制防止滾動
+            
+            const x = event.touches ? event.touches[0].clientX : event.clientX;
+            const y = event.touches ? event.touches[0].clientY : event.clientY;
+            
+            if (dragState.ghostElement) {
+                dragState.ghostElement.style.left = x + 'px';
+                dragState.ghostElement.style.top = y + 'px';
+            }
+            
+            // 磁吸判定
+            document.querySelectorAll('.factor-slot').forEach(s => s.classList.remove('magnetic-hover'));
+            let target = document.elementFromPoint(x, y);
+            if (target && target.classList.contains('factor-slot')) {
+                target.classList.add('magnetic-hover');
+            }
+        }
+
+        function handleDragEnd(event) {
+            if (!dragState.isDragging) return;
+            
+            document.removeEventListener('mousemove', handleDragMove);
+            document.removeEventListener('touchmove', handleDragMove);
+            document.removeEventListener('mouseup', handleDragEnd);
+            document.removeEventListener('touchend', handleDragEnd);
+            
+            const x = event.changedTouches ? event.changedTouches[0].clientX : event.clientX;
+            const y = event.changedTouches ? event.changedTouches[0].clientY : event.clientY;
+            
+            document.querySelectorAll('.factor-slot').forEach(s => s.classList.remove('magnetic-hover'));
+            
+            let target = document.elementFromPoint(x, y);
+            
+            if (dragState.isRemovingFactor) {
+                // 如果是移除
+                if (!target || !target.classList.contains('factor-slot')) {
+                    removeFactor(dragState.sourceSlot);
+                }
+            } else {
+                // 如果是放置
+                if (target && target.classList.contains('factor-slot')) {
+                    placeFactor(target, dragState.draggedNumber);
+                }
+            }
+            
+            if (dragState.ghostElement) {
+                dragState.ghostElement.remove();
+                dragState.ghostElement = null;
+            }
+            dragState.isDragging = false;
+        }
+
+        function placeFactor(slot, num) {
+            const q = gameState.questions[gameState.currentQuestion];
+            const idx = parseInt(slot.dataset.index);
+            if (!q.userAnswer) q.userAnswer = [];
+            if (q.userAnswer.length >= 6) return showToast('最多只能分解出 6 個質因數喔！', 'error');
+            
+            if (slot.textContent === '') {
+                q.userAnswer.push(num);
+            } else {
+                q.userAnswer.splice(idx, 0, num);
+            }
+            rebuildFactorsContainer();
+            vibrate([80]);
+        }
+
+        function removeFactor(slot) {
+            const q = gameState.questions[gameState.currentQuestion];
+            const idx = parseInt(slot.dataset.index);
+            q.userAnswer.splice(idx, 1);
+            rebuildFactorsContainer();
+            vibrate([50]);
+        }
+
+        // --- 邏輯判定 ---
+        function checkAnswer() {
+            const q = gameState.questions[gameState.currentQuestion];
+            const ans = q.userAnswer || [];
+            
+            if (ans.length === 0) {
+                return showToast('請先將數字拖曳到框框中！', 'error');
+            }
+            
+            const allPrimes = ans.every(isPrime);
+            const product = ans.reduce((acc, curr) => acc * curr, 1);
+            const isCorrect = allPrimes && (product === q.number);
+            
+            q.answerTime = Date.now() - q.startTime;
+            q.isCorrect = isCorrect;
+            gameState.answeredQuestions++;
+            
+            const area = document.getElementById('questionArea');
+            if (isCorrect) {
+                gameState.score++;
+                gameState.combo++;
+                gameState.correctAnswers++;
+                if (gameState.combo >= 3) gameState.score++; // 連擊額外加分
+                gameState.maxCombo = Math.max(gameState.maxCombo, gameState.combo);
+                
+                area.classList.add('pulse-green');
+                setTimeout(() => area.classList.remove('pulse-green'), 500);
+                vibrate([100, 50, 100]);
+            } else {
+                gameState.combo = 0;
+                area.classList.add('pulse-red', 'shake');
+                setTimeout(() => area.classList.remove('pulse-red', 'shake'), 500);
+                vibrate([200, 100, 200]);
+            }
+            
+            updateHUD();
+            setTimeout(nextQuestion, 600);
+        }
+
+        function skipQuestion() {
+            const q = gameState.questions[gameState.currentQuestion];
+            q.isSkipped = true;
+            q.answerTime = Date.now() - q.startTime;
+            gameState.answeredQuestions++;
+            gameState.combo = 0;
+            gameState.score = Math.max(0, gameState.score - 3);
+            
+            updateHUD();
+            nextQuestion();
+        }
+
+        function nextQuestion() {
+            gameState.currentQuestion++;
+            loadQuestion();
+        }
+
+        function updateHUD() {
+            document.getElementById('score').textContent = gameState.score;
+            const comboEl = document.getElementById('comboDisplay');
+            if (gameState.combo >= 3) {
+                comboEl.classList.remove('hidden');
+                document.getElementById('combo').textContent = gameState.combo;
+            } else {
+                comboEl.classList.add('hidden');
+            }
+        }
+
+        // --- 計時器 ---
+        function startTimer() {
+            clearInterval(gameState.timerInterval);
+            gameState.remainingTime = gameState.timeMinutes * 60;
+            gameState.totalTime = gameState.remainingTime;
+            
+            updateTimerUI();
+            gameState.timerInterval = setInterval(() => {
+                if(gameState.remainingTime > 0) {
+                    gameState.remainingTime--;
+                    updateTimerUI();
+                } else {
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        function updateTimerUI() {
+            const m = Math.floor(gameState.remainingTime / 60).toString().padStart(2, '0');
+            const s = (gameState.remainingTime % 60).toString().padStart(2, '0');
+            const timerEl = document.getElementById('timer');
+            timerEl.textContent = `${m}:${s}`;
+            
+            if (gameState.remainingTime <= 10) timerEl.classList.add('text-red-500');
+            else timerEl.classList.remove('text-red-500');
+            
+            const pct = (gameState.remainingTime / gameState.totalTime) * 100;
+            const bar = document.getElementById('progressBar');
+            bar.style.width = `${pct}%`;
+            bar.className = `h-full transition-all duration-1000 linear ${pct > 50 ? 'bg-emerald-500' : (pct > 25 ? 'bg-amber-500' : 'bg-red-500')}`;
+        }
+
+        // --- 結算與排行榜 ---
+        function endGame() {
+            gameState.gameEnded = true;
+            clearInterval(gameState.timerInterval);
+            
+            const cr = gameState.answeredQuestions > 0 ? Math.round((gameState.correctAnswers / gameState.answeredQuestions) * 100) : 0;
+            
+            document.getElementById('finalScore').textContent = gameState.score;
+            document.getElementById('answerStatus').textContent = `${gameState.correctAnswers}/${gameState.answeredQuestions}`;
+            document.getElementById('correctRate').textContent = cr + '%';
+            document.getElementById('maxCombo').textContent = gameState.maxCombo;
+            
+            // 錯題清單
+            const wrongs = gameState.questions.filter(q => (!q.isCorrect || q.isSkipped) && q.answerTime > 0);
+            const wrongList = document.getElementById('wrongAnswersList');
+            if (wrongs.length === 0) {
+                wrongList.innerHTML = '<div class="text-center text-gray-500 mt-4">🎉 太厲害了！沒有任何錯題</div>';
+            } else {
+                wrongList.innerHTML = wrongs.map(q => `
+                    <div class="p-3 rounded-lg border-2 ${q.isSkipped ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'}">
+                        <div class="font-bold text-gray-800">${q.number}</div>
+                        <div class="text-green-700 text-sm mt-1">正確: ${q.factors.join(' × ')}</div>
+                        <div class="text-${q.isSkipped ? 'amber' : 'red'}-600 text-sm">
+                            ${q.isSkipped ? '✗ 已跳過' : `✗ 你的答案: ${(q.userAnswer || []).join(' × ') || '未作答'}`}
+                        </div>
+                    </div>
+                `).join('');
+            }
+            
+            document.getElementById('gameScreen').classList.add('hidden');
+            document.getElementById('resultModal').classList.remove('hidden');
+            document.getElementById('resultModal').classList.add('flex');
+        }
+
+        // Firebase 記錄成績
+        async function submitScore() {
+            const nameInput = document.getElementById('playerName');
+            const name = nameInput.value.trim();
+            if (!name) return showToast('請填寫班級座號姓名才能記錄！', 'error');
+            
+            // 驗證格式：3碼數字(班級) + 2碼數字(座號) + 空白 + 姓名
+            // 允許學生中間少打空白，例如 "60101 王小明" 或 "601 01 王小明"
+            const match = name.match(/^(\d{3})\s*(\d{2})\s+(.+)$/);
+            if (!match) {
+                return showToast('格式錯誤！請依照格式輸入：60X(班級) 01(座號) 姓名', 'error');
+            }
+            
+            // 將輸入格式標準化，例如統一變成 "601 01 王小明"
+            const formattedName = `${match[1]} ${match[2]} ${match[3]}`;
+            
+            if (!window.dbHelper || !window.dbHelper.ready) {
+                return showToast('資料庫尚未就緒，請稍後再試', 'error');
+            }
+
+            const btn = document.getElementById('submitScoreBtn');
+            btn.disabled = true;
+            btn.textContent = '傳送中...';
+            
+            const success = await window.dbHelper.saveScore({
+                name: formattedName,
+                score: gameState.score,
+                mode: gameState.difficulty,
+                time: gameState.timeMinutes
+            });
+            
+            if (success) {
+                showToast('成績記錄成功！🏆');
+                nameInput.disabled = true;
+                btn.textContent = '已送出';
+                await loadLeaderboard();
+            } else {
+                showToast('發生錯誤，請重試', 'error');
+                btn.disabled = false;
+                btn.textContent = '送出成績';
+            }
+        }
+
+        async function loadLeaderboard() {
+            const area = document.getElementById('leaderboardArea');
+            const list = document.getElementById('leaderboardList');
+            area.classList.remove('hidden');
+            list.innerHTML = '<div class="text-center text-gray-500 text-sm py-4">榜單載入中...</div>';
+            
+            const data = await window.dbHelper.getLeaderboard();
+            if (data.length === 0) {
+                list.innerHTML = '<div class="text-center text-gray-500 text-sm py-4">目前尚無紀錄，搶當第一名吧！</div>';
+                return;
+            }
+            
+            list.innerHTML = data.map((item, i) => `
+                <div class="flex justify-between items-center bg-white px-4 py-2 rounded-lg shadow-sm border border-indigo-50">
+                    <div class="flex items-center gap-3">
+                        <span class="font-bold text-${i===0 ? 'yellow-500' : (i===1 ? 'gray-400' : (i===2 ? 'amber-600' : 'gray-400'))} w-5 text-center">${i + 1}</span>
+                        <span class="font-bold text-gray-700">${item.name}</span>
+                    </div>
+                    <div class="font-black text-indigo-600">${item.score} <span class="text-xs font-normal text-gray-500">分</span></div>
+                </div>
+            `).join('');
+        }
+
+        // 啟動
+        document.addEventListener('DOMContentLoaded', setupEventListeners);
+    </script>
+</body>
+</html>
