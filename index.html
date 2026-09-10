@@ -146,7 +146,7 @@
     
     <!-- 作者資訊與版本號 -->
     <div class="fixed bottom-3 left-3 z-[60] bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-lg shadow-sm border border-slate-200 text-xs md:text-sm font-medium text-slate-600 pointer-events-none">
-        嘉義市僑平國小 王大榮老師設計 v.2.8
+        嘉義市僑平國小 王大榮老師設計 v.3.0
     </div>
 
     <!-- 遊戲規則頁面 (首頁) -->
@@ -356,27 +356,29 @@
 
     <!-- 排行榜 Modal -->
     <div id="leaderboardModal" class="fixed inset-0 bg-black bg-opacity-60 hidden items-center justify-center z-[70] p-4">
-        <div class="bg-white rounded-2xl p-6 max-w-lg w-full max-h-[85vh] flex flex-col shadow-2xl relative">
+        <div class="bg-white rounded-2xl p-4 md:p-6 max-w-3xl w-full h-[90vh] flex flex-col shadow-2xl relative">
             <button id="closeLeaderboardBtn" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
             </button>
             
-            <h3 class="text-2xl font-bold text-gray-800 mb-4 text-center">🏆 質因數分解 英雄榜</h3>
+            <h3 class="text-2xl font-bold text-gray-800 mb-4 text-center shrink-0">🏆 質因數分解 英雄榜</h3>
             
             <!-- 難度切換 Tab -->
-            <div class="flex border-b border-gray-200 mb-4">
+            <div class="flex border-b border-gray-200 mb-3 shrink-0">
                 <button class="lb-tab-btn flex-1 py-2 font-semibold text-indigo-600 border-b-2 border-indigo-600" data-target="scores_beginner">基礎</button>
                 <button class="lb-tab-btn flex-1 py-2 font-semibold text-gray-500 hover:text-gray-700" data-target="scores_advanced">進階</button>
                 <button class="lb-tab-btn flex-1 py-2 font-semibold text-gray-500 hover:text-gray-700" data-target="scores_challenge">挑戰</button>
             </div>
 
-            <div class="flex justify-between px-4 text-sm font-bold text-gray-500 mb-2">
-                <span class="w-12 text-center">排名</span>
-                <span class="flex-1 text-center">班級 座號 姓名</span>
-                <span class="w-16 text-right">分數</span>
+            <!-- 修改這裡的 grid-cols 比例，縮減姓名空間，並給予效率欄位 110px 以防換行 -->
+            <div class="grid grid-cols-[40px_1fr_60px] sm:grid-cols-[40px_1fr_1fr_100px] md:grid-cols-[50px_2fr_3fr_110px] px-4 text-sm font-bold text-slate-500 mb-1 bg-slate-50 py-2 rounded-t-xl shrink-0 border border-slate-100">
+                <div class="text-center">排名</div>
+                <div class="text-left px-2">班級 座號 姓名</div>
+                <div class="text-center hidden sm:block">原分 / 時間 / 連擊</div>
+                <div class="text-right">效率(得分/分鐘)</div>
             </div>
             
-            <div id="leaderboardList" class="flex-1 overflow-y-auto space-y-2 pr-2">
+            <div id="leaderboardList" class="flex-1 overflow-y-auto space-y-1 pr-2 pb-2">
                 <div class="text-center text-gray-500 py-8">載入中...</div>
             </div>
         </div>
@@ -1010,8 +1012,14 @@
                     allScores.push(doc.data());
                 });
 
-                // 排序：分數高 > 連擊高 > 時間新
-                allScores.sort((a, b) => b.score - a.score || b.maxCombo - a.maxCombo || b.timestamp - a.timestamp);
+                // 排序：以「效率 (分數/時間)」為第一優先 > 連擊高 > 時間新
+                allScores.sort((a, b) => {
+                    const spmA = a.score / (a.timeMinutes || 1);
+                    const spmB = b.score / (b.timeMinutes || 1);
+                    if (spmB !== spmA) return spmB - spmA; // 效率高的排前面
+                    if (b.maxCombo !== a.maxCombo) return b.maxCombo - a.maxCombo; // 效率一樣比連擊
+                    return b.timestamp - a.timestamp; // 連擊也一樣比最新
+                });
                 
                 // 取前 30 名
                 const topScores = allScores.slice(0, 30);
@@ -1027,13 +1035,21 @@
                     else if (index === 1) rankIcon = '🥈';
                     else if (index === 2) rankIcon = '🥉';
 
+                    // 計算標準化分數
+                    const spm = data.timeMinutes ? (data.score / data.timeMinutes).toFixed(1) : ((data.score || 0) / 1).toFixed(1);
+
                     return `
-                        <div class="flex items-center justify-between bg-white p-3 rounded-lg border border-gray-100 shadow-sm hover:shadow transition">
-                            <div class="w-12 text-center text-xl">${rankIcon}</div>
-                            <div class="flex-1 text-center font-bold text-gray-800 tracking-wide">${data.name}</div>
-                            <div class="w-16 text-right">
-                                <span class="text-lg font-black text-indigo-600">${data.score}</span>
-                                <div class="text-[10px] text-gray-400 leading-none">連擊${data.maxCombo}</div>
+                        <!-- 同步修改迴圈內生成的列表 grid-cols 比例 -->
+                        <div class="grid grid-cols-[40px_1fr_60px] sm:grid-cols-[40px_1fr_1fr_100px] md:grid-cols-[50px_2fr_3fr_110px] items-center bg-white py-1.5 px-3 md:px-4 rounded-lg border border-slate-100 hover:bg-slate-50 hover:border-slate-200 transition group shadow-sm">
+                            <div class="text-center text-lg md:text-xl">${rankIcon}</div>
+                            <div class="text-left px-2 font-bold text-gray-700 tracking-wide truncate text-sm md:text-base">${data.name}</div>
+                            <div class="text-center hidden sm:flex flex-col justify-center border-l border-slate-100 px-2">
+                                <div class="text-xs text-gray-500 font-medium">${data.score || '?'} 分 / ${data.timeMinutes || '?'} m</div>
+                                <div class="text-[10px] text-gray-400 mt-0.5">最高連擊: ${data.maxCombo || 0}</div>
+                            </div>
+                            <div class="text-right flex flex-col justify-center border-l sm:border-slate-100 pl-2">
+                                <span class="text-lg md:text-xl font-black text-indigo-600">${spm}</span>
+                                <div class="text-[9px] text-gray-400 sm:hidden leading-none mt-0.5">${data.score || 0}分/${data.timeMinutes || 1}m</div>
                             </div>
                         </div>
                     `;
