@@ -146,7 +146,7 @@
     
     <!-- 作者資訊與版本號 -->
     <div class="fixed bottom-3 left-3 z-[60] bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-lg shadow-sm border border-slate-200 text-xs md:text-sm font-medium text-slate-600 pointer-events-none">
-        嘉義市僑平國小 王大榮老師設計 v.3.0
+        嘉義市僑平國小 王大榮老師設計 v.3.2
     </div>
 
     <!-- 遊戲規則頁面 (首頁) -->
@@ -209,62 +209,62 @@
     </div>
 
     <!-- 主遊戲畫面 -->
-    <div id="gameScreen" class="hidden min-h-screen p-4">
+    <div id="gameScreen" class="hidden h-[100dvh] flex-col p-2 md:p-4 max-w-7xl mx-auto w-full overflow-hidden">
         <!-- HUD -->
-        <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl p-4 mb-4 shadow-lg">
-            <div class="flex flex-wrap items-center justify-between gap-4">
-                <div class="flex items-center gap-6">
-                    <div class="text-2xl font-bold text-emerald-600">
+        <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl p-3 md:p-4 mb-3 md:mb-4 shadow-lg shrink-0 z-10">
+            <div class="flex flex-wrap items-center justify-between gap-2 md:gap-4">
+                <div class="flex items-center gap-3 md:gap-6">
+                    <div class="text-xl md:text-2xl font-bold text-emerald-600 whitespace-nowrap">
                         分數: <span id="score">0</span>
                     </div>
-                    <div id="comboDisplay" class="text-xl font-bold text-amber-500 hidden">
+                    <div id="comboDisplay" class="text-base md:text-xl font-bold text-amber-500 hidden whitespace-nowrap">
                         連擊: <span id="combo">0</span>
                     </div>
-                    <div class="text-sm text-slate-600 bg-slate-100 px-3 py-1 rounded-full" id="gameModeHUD">
+                    <div class="text-xs md:text-sm text-slate-600 bg-slate-100 px-2 py-1 md:px-3 md:py-1 rounded-full hidden sm:block whitespace-nowrap" id="gameModeHUD">
                         入門模式 / 1分鐘
                     </div>
                 </div>
-                <div class="flex items-center gap-4">
-                    <div class="text-lg font-bold" id="timer">01:00</div>
-                    <button id="restartBtn" class="bg-slate-500 hover:bg-slate-600 text-white px-4 py-2 rounded-lg font-medium transition-all transform hover:scale-105">
+                <div class="flex items-center gap-2 md:gap-4">
+                    <div class="text-base md:text-lg font-bold whitespace-nowrap" id="timer">01:00</div>
+                    <button id="restartBtn" class="bg-slate-500 hover:bg-slate-600 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-sm md:text-base font-medium transition-all transform hover:scale-105 shadow-sm whitespace-nowrap">
                         重新開始
                     </button>
-                    <button id="changeSettingsBtn2" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-all transform hover:scale-105">
+                    <button id="changeSettingsBtn2" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-lg text-sm md:text-base font-medium transition-all transform hover:scale-105 shadow-sm whitespace-nowrap">
                         調整模式
                     </button>
                 </div>
             </div>
             <!-- 時間進度條 -->
-            <div class="mt-3 bg-slate-200 rounded-full h-2">
-                <div id="progressBar" class="transition-all duration-300 h-2 rounded-full" style="width: 100%; background: linear-gradient(90deg, #10b981, #059669);"></div>
+            <div class="mt-2 md:mt-3 bg-slate-200 rounded-full h-1.5 md:h-2">
+                <div id="progressBar" class="transition-all duration-300 h-1.5 md:h-2 rounded-full" style="width: 100%; background: linear-gradient(90deg, #10b981, #059669);"></div>
             </div>
         </div>
 
-        <div class="grid lg:grid-cols-3 gap-6">
+        <div class="flex-1 grid lg:grid-cols-3 grid-rows-[1fr_auto] lg:grid-rows-1 gap-3 md:gap-6 min-h-0 pb-10 sm:pb-0">
             <!-- 題目區域 -->
-            <div class="lg:col-span-2 bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl p-6 shadow-lg transition-colors duration-300">
-                <div id="questionContainer" class="relative flex flex-col justify-center min-h-[400px]">
-                    <div class="absolute top-0 left-0 text-lg font-medium text-slate-600">
+            <div class="lg:col-span-2 bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl p-4 md:p-6 shadow-lg transition-colors duration-300 flex flex-col h-full min-h-0 relative">
+                <div id="questionContainer" class="relative flex-1 flex flex-col justify-center min-h-0">
+                    <div class="absolute top-0 left-0 text-sm md:text-lg font-medium text-slate-600">
                         題目: <span id="currentQuestion">1</span>
                     </div>
                     
-                    <div class="text-center flex-1 flex flex-col justify-center">
-                        <div class="text-3xl font-bold text-slate-800 mb-8">
-                            將 <span id="targetNumber" class="text-4xl text-emerald-600">12</span> 做質因數分解
+                    <div class="text-center flex-1 flex flex-col justify-center items-center">
+                        <div class="text-2xl md:text-3xl font-bold text-slate-800 mb-4 md:mb-8 mt-6 md:mt-0">
+                            將 <span id="targetNumber" class="text-3xl md:text-4xl text-emerald-600">12</span> 做質因數分解
                         </div>
-                        <div class="flex items-center justify-center gap-4 text-2xl mb-8">
-                            <span id="targetNumberDisplay" class="bg-emerald-100 text-emerald-800 px-4 py-2 rounded-xl font-bold">12</span>
-                            <span class="text-slate-600">=</span>
+                        <div class="flex flex-wrap items-center justify-center gap-2 md:gap-4 text-xl md:text-2xl mb-6 md:mb-8 w-full">
+                            <span id="targetNumberDisplay" class="bg-emerald-100 text-emerald-800 px-3 py-1.5 md:px-4 md:py-2 rounded-xl font-bold shadow-sm">12</span>
+                            <span class="text-slate-600 font-bold">=</span>
                             <!-- 加上 no-scroll-touch 防止拖曳格子時滑動 iPad 畫面 -->
-                            <div id="factorsContainer" class="flex flex-wrap items-center justify-center gap-2 no-scroll-touch min-h-[5rem]">
+                            <div id="factorsContainer" class="flex flex-wrap items-center justify-center gap-1 md:gap-2 no-scroll-touch min-h-[4rem] md:min-h-[5rem]">
                             </div>
                         </div>
                         
-                        <div class="grid grid-cols-2 gap-4 mt-8">
-                            <button id="submitBtn" class="bg-emerald-500 hover:bg-emerald-600 text-white py-4 rounded-xl font-bold transition-all transform hover:scale-105 shadow-lg text-lg">
+                        <div class="grid grid-cols-2 gap-3 md:gap-4 mt-auto md:mt-8 w-full max-w-md mx-auto">
+                            <button id="submitBtn" class="bg-emerald-500 hover:bg-emerald-600 text-white py-3 md:py-4 rounded-xl font-bold transition-all transform hover:scale-105 shadow-md text-base md:text-lg">
                                 提交答案
                             </button>
-                            <button id="skipBtn" class="bg-gray-500 hover:bg-gray-600 text-white py-4 rounded-xl font-bold transition-all transform hover:scale-105 shadow-lg text-lg">
+                            <button id="skipBtn" class="bg-gray-500 hover:bg-gray-600 text-white py-3 md:py-4 rounded-xl font-bold transition-all transform hover:scale-105 shadow-md text-base md:text-lg">
                                 跳過 (-3分)
                             </button>
                         </div>
@@ -273,10 +273,9 @@
             </div>
 
             <!-- 數字池 -->
-            <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl p-6 shadow-lg">
-                <h3 class="text-xl font-bold text-slate-800 mb-4 text-center md:text-left">🎯 數字池</h3>
-                <!-- iPad直向優化：調整grid佈局 -->
-                <div id="numberPool" class="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-3 gap-3 no-scroll-touch"></div>
+            <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl p-4 md:p-6 shadow-lg flex flex-col min-h-0">
+                <h3 class="text-lg md:text-xl font-bold text-slate-800 mb-3 md:mb-4 text-center lg:text-left shrink-0">🎯 數字池</h3>
+                <div id="numberPool" class="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-3 gap-2 md:gap-3 no-scroll-touch flex-1 content-start lg:content-center overflow-y-auto"></div>
             </div>
         </div>
     </div>
