@@ -129,7 +129,7 @@
     
     <!-- 全域浮水印 -->
     <div class="fixed bottom-3 left-1/2 transform -translate-x-1/2 z-[60] bg-white/80 backdrop-blur-md px-4 py-1.5 rounded-lg shadow-sm border border-slate-200 text-xs md:text-sm font-medium text-slate-600 pointer-events-none whitespace-nowrap">
-        大榮老師製作 © 2026 | Version 3.4 (v 3.4)
+        大榮老師製作 © 2026 | Version 3.5 (v 3.5)
     </div>
 
     <!-- 首頁 (設定與登入畫面) -->
@@ -266,7 +266,7 @@
             <!-- 數字池 -->
             <div class="bg-white bg-opacity-95 backdrop-blur-sm rounded-2xl p-4 md:p-6 shadow-lg flex flex-col min-h-0 border border-slate-100">
                 <h3 class="text-lg md:text-xl font-bold text-slate-800 mb-3 md:mb-4 text-center lg:text-left shrink-0">🎯 數字池</h3>
-                <div id="numberPool" class="grid grid-cols-6 lg:grid-cols-3 gap-2 md:gap-3 no-scroll-touch flex-1 content-center overflow-y-auto"></div>
+                <div id="numberPool" class="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-3 gap-2 md:gap-3 no-scroll-touch flex-1 place-content-center overflow-hidden pb-1"></div>
             </div>
         </div>
     </div>
@@ -317,9 +317,6 @@
 
             <!-- 操作按鈕 -->
             <div class="flex flex-wrap gap-4 mt-auto">
-                <button id="uploadScoreBtn" class="bg-indigo-500 hover:bg-indigo-600 text-white py-3 px-6 rounded-xl font-bold transition-all flex-1 shadow-md text-lg transform hover:-translate-y-1">
-                    📤 送出成績
-                </button>
                 <button id="showLeaderboardBtn" class="bg-amber-500 hover:bg-amber-600 text-white py-3 px-6 rounded-xl font-bold transition-all flex-1 shadow-md text-lg transform hover:-translate-y-1">
                     🏆 查看排行榜
                 </button>
@@ -798,7 +795,7 @@
             const pool = generateNumberPool(question.number, question.factors);
             const poolEl = document.getElementById('numberPool');
             poolEl.innerHTML = pool.map(num => `
-                <div class="bg-gradient-to-br from-sky-400 to-sky-500 hover:from-sky-500 hover:to-sky-600 text-white aspect-square flex items-center justify-center rounded-2xl text-2xl font-black cursor-grab transition-all shadow-md select-none touch-manipulation border-b-4 border-sky-600 active:border-b-0 active:translate-y-1" 
+                <div class="w-full max-w-[4.5rem] sm:max-w-[5rem] lg:max-w-[6rem] aspect-square mx-auto bg-gradient-to-br from-sky-400 to-sky-500 hover:from-sky-500 hover:to-sky-600 text-white flex items-center justify-center rounded-xl md:rounded-2xl text-xl md:text-2xl font-black cursor-grab transition-all shadow-md select-none touch-manipulation border-b-4 border-sky-600 active:border-b-0 active:translate-y-1" 
                      onmousedown="startDrag(event, ${num})" 
                      ontouchstart="startDrag(event, ${num})">${num}</div>
             `).join('');
@@ -877,11 +874,10 @@
             document.getElementById('maxCombo').textContent = gameState.maxCombo;
             document.getElementById('gameModeDisplay').textContent = `質因數分解 / ${difficultySettings[gameState.difficulty].name.split('：')[0]} / ${gameState.timeMinutes}分鐘`;
             
-            // 重置上傳按鈕狀態
-            const uploadBtn = document.getElementById('uploadScoreBtn');
-            uploadBtn.disabled = false;
-            uploadBtn.textContent = '📤 送出成績';
-            uploadBtn.className = 'bg-indigo-500 hover:bg-indigo-600 text-white py-3 px-6 rounded-xl font-bold transition-all flex-1 shadow-md text-lg transform hover:-translate-y-1';
+            // 重置動態訊息狀態
+            const motivationEl = document.getElementById('motivationMessage');
+            motivationEl.textContent = '準備儲存成績...';
+            motivationEl.className = 'text-sm mt-2 font-bold inline-block px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 transition-colors';
 
             // 錯題列表
             const wrongQuestions = gameState.questions.filter(q => !q.isCorrect || q.isSkipped);
@@ -914,15 +910,18 @@
             
             document.getElementById('resultModal').classList.remove('hidden');
             document.getElementById('resultModal').classList.add('flex');
+            
+            // 遊戲結束自動上傳成績
+            submitScore();
         }
 
         async function submitScore() {
             try {
-                const btn = document.getElementById('uploadScoreBtn');
-                btn.disabled = true;
-                btn.textContent = '⏳ 處理中...';
+                const motivationEl = document.getElementById('motivationMessage');
+                motivationEl.textContent = '⏳ 成績自動儲存中...';
+                motivationEl.classList.replace('bg-emerald-50', 'bg-amber-50');
+                motivationEl.classList.replace('text-emerald-600', 'text-amber-600');
 
-                // 🎯 [核心修正]：將路徑指向您截圖中的深層結構
                 const fullPath = `artifacts/prime-factor-v2/public/data/scores_${gameState.difficulty}`;
                 
                 await addDoc(collection(db, fullPath), {
@@ -934,21 +933,18 @@
                     timestamp: Date.now()
                 });
 
-                showToast('✅ 成績成功送出！');
-                btn.textContent = '✅ 已送出';
-                btn.className = 'bg-emerald-500 text-white py-3 px-6 rounded-xl font-bold flex-1 shadow-inner text-lg cursor-not-allowed opacity-80';
+                motivationEl.textContent = '✅ 成績已自動儲存！';
+                motivationEl.classList.replace('bg-amber-50', 'bg-emerald-50');
+                motivationEl.classList.replace('text-amber-600', 'text-emerald-600');
                 
             } catch (error) {
                 console.error("上傳失敗:", error);
-                const btn = document.getElementById('uploadScoreBtn');
-                btn.disabled = false;
-                btn.textContent = '📤 重試送出';
-                
-                if (error.code === 'permission-denied') {
-                    showToast('⛔ 上傳被拒絕：請確認 Firebase 的「安全規則」已開啟權限', true);
-                } else {
-                    showToast('❌ 上傳失敗，請檢查網路連線', true);
-                }
+                const motivationEl = document.getElementById('motivationMessage');
+                motivationEl.textContent = '❌ 成績儲存失敗，請檢查網路';
+                motivationEl.classList.replace('bg-emerald-50', 'bg-rose-50');
+                motivationEl.classList.replace('text-emerald-600', 'text-rose-600');
+                motivationEl.classList.replace('bg-amber-50', 'bg-rose-50');
+                motivationEl.classList.replace('text-amber-600', 'text-rose-600');
             }
         }
 
@@ -1172,9 +1168,6 @@
             document.getElementById('replayBtn').addEventListener('click', doRestart);
             document.getElementById('changeSettingsBtn').addEventListener('click', doBackToSettings);
             document.getElementById('changeSettingsBtn2').addEventListener('click', doBackToSettings);
-
-            // 送出成績
-            document.getElementById('uploadScoreBtn').addEventListener('click', submitScore);
             
             // 排行榜顯示
             const openLeaderboard = (defaultMode) => {
